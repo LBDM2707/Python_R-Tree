@@ -60,12 +60,12 @@ class Node(object):
                 self.MBR.y2 = point.y if point.y > self.MBR.y2 else self.MBR.y2
         pass
 
-    def perimeter_with_point(self, point):
+    def perimeter_increase_with_point(self, point):
         x1 = point.x if point.x < self.MBR.x1 else self.MBR.x1
         y1 = point.y if point.y < self.MBR.y1 else self.MBR.y1
         x2 = point.x if point.x > self.MBR.x2 else self.MBR.x2
         y2 = point.y if point.y > self.MBR.y2 else self.MBR.y2
-        return Rect(x1, y1, x2, y2).perimeter()
+        return Rect(x1, y1, x2, y2).perimeter() - self.perimeter()
 
     def perimeter(self):
         # only calculate the half perimeter here
@@ -105,7 +105,8 @@ class RegionTree:
         pass
 
     # Find a suitable one to expand:
-    def choose_best_child(self, node, point):
+    @staticmethod
+    def choose_best_child(node, point):
         fit_child = None
         best_child = None
         best_perimeter = 0
@@ -114,10 +115,16 @@ class RegionTree:
             if item.has_point(point):
                 fit_child = node
                 break
-            if node.child_nodes.index(item) == 0 or best_perimeter > item.perimeter_with_point(point):
+            if node.child_nodes.index(item) == 0 or best_perimeter > item.perimeter_increase_with_point(point):
                 best_child = item
                 best_perimeter = node.perimeter_with_point(point)
         return fit_child if fit_child is not None else best_child
 
-    def query_region(self, rect):
+    def split_leaf_node(self, node):
+        pass
+
+    def split_internal_node(self, node):
+        pass
+
+    def query_region(self, region):
         return None
