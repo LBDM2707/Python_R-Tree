@@ -1,6 +1,5 @@
 import sys
-from Core_functions import sequential_query
-from pyrtree import Rect, RTree
+from Core_functions import RTree, sequential_query
 import time
 
 data_file = ""
