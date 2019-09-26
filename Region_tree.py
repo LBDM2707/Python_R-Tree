@@ -99,6 +99,8 @@ class RegionTree:
         if cur_node.is_leaf():
             cur_node.add_point(point)
             # handle overflow
+            if cur_node.is_overflow():
+                self.handle_overflow(cur_node)
         else:
             chosen_child = self.choose_best_child(cur_node, point)
             self.insert_point(point, chosen_child)
@@ -119,6 +121,9 @@ class RegionTree:
                 best_child = item
                 best_perimeter = node.perimeter_with_point(point)
         return fit_child if fit_child is not None else best_child
+
+    def handle_overflow(self, node):
+        pass
 
     def split_leaf_node(self, node):
         pass
