@@ -72,7 +72,8 @@ def main(args):
                 # sequential
                 time_sum_sequential += time_it(sequential_query, data_points, query)['time']
                 # R tree
-                r_tree_run = time_it(R_tree.query_rect, Rect(query["x1"], query["y1"], query["x2"], query["y2"]))
+                r_tree_run = time_it(R_tree.query_rect,
+                                     (query["x1"], query["y1"], query["x2"], query["y2"]))
                 time_sum_r_tree += r_tree_run['time']
                 results.append("{}\n".format(r_tree_run['result']))
         print('\ntotal time for sequential queries: {}'.format(time_sum_sequential))

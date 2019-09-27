@@ -17,6 +17,9 @@ class Rect:
     def is_overlap(self, rect):
         return self.x1 < rect.x2 and self.x2 > rect.x1 and self.y1 > rect.y2 and self.y2 < rect.y1
 
+    def contain_rect(self, rect):
+        return self.x1 < rect.x1 and self.y1 < rect.y1 and self.x2 < rect.x2 and self.y2 < rect.y2
+
     def has_point(self, point):
         return self.x1 <= point.x <= self.x2 and self.y1 <= point.y <= self.y2
 
@@ -46,18 +49,17 @@ class Node(object):
         self.MBR = Rect(-1, -1, -1, -1)
 
     def add_point(self, point):
-        if self.is_leaf():
+        # update in the right position to keep the list ordered
+        if len(self.data_points) == 0:
             self.data_points.append(point)
-            # update MBR
-            if len(self.data_points) == 1:
-                self.MBR = Rect(point.x, point.y, point.x, point.y)
-            else:
-                print(self.MBR)
-                print(point)
-                self.MBR.x1 = point.x if point.x < self.MBR.x1 else self.MBR.x1
-                self.MBR.y1 = point.y if point.y < self.MBR.y1 else self.MBR.y1
-                self.MBR.x2 = point.x if point.x > self.MBR.x2 else self.MBR.x2
-                self.MBR.y2 = point.y if point.y > self.MBR.y2 else self.MBR.y2
+        else:
+            index = 0
+            while point.x > self.data_points[index].x or point.y > self.data_points[index].y:
+                index += 1
+            self.data_points.insert(index, point)
+        # update MBR
+        self.update_MBR()
+
         pass
 
     def perimeter_increase_with_point(self, point):
@@ -85,6 +87,32 @@ class Node(object):
     def is_leaf(self):
         return len(self.child_nodes) == 0
 
+    def add_child_node(self, node):
+        node.parent_node = self
+        self.child_nodes.append(node)
+        self.update_MBR()
+        pass
+
+    def add_child_nodes(self, nodes):
+        for node in nodes:
+            self.add_child_node(node)
+        pass
+
+    def update_MBR(self):
+        if self.is_leaf():
+            self.MBR.x1 = min([point.x for point in self.data_points])
+            self.MBR.x2 = max([point.x for point in self.data_points])
+            self.MBR.y1 = min([point.y for point in self.data_points])
+            self.MBR.y2 = max([point.y for point in self.data_points])
+        else:
+            self.MBR.x1 = min([child.MBR.x1 for child in self.child_nodes])
+            self.MBR.x2 = max([child.MBR.x2 for child in self.child_nodes])
+            self.MBR.y1 = min([child.MBR.y1 for child in self.child_nodes])
+            self.MBR.y2 = max([child.MBR.y2 for child in self.child_nodes])
+        if self.parent_node and not self.parent_node.MBR.contain_rect(self.MBR):
+            self.parent_node.update_MBR()
+        pass
+
 
 class RegionTree:
     def __init__(self, B):
@@ -109,27 +137,34 @@ class RegionTree:
     # Find a suitable one to expand:
     @staticmethod
     def choose_best_child(node, point):
-        fit_child = None
         best_child = None
         best_perimeter = 0
         # Scan the child nodes
         for item in node.child_nodes:
-            if item.has_point(point):
-                fit_child = node
-                break
             if node.child_nodes.index(item) == 0 or best_perimeter > item.perimeter_increase_with_point(point):
                 best_child = item
-                best_perimeter = node.perimeter_with_point(point)
-        return fit_child if fit_child is not None else best_child
+                best_perimeter = item.perimeter_with_point(point)
+        return best_child
 
     def handle_overflow(self, node):
+        node, new_node = self.split_leaf_node(node) if node.is_leaf() else self.split_internal_node(node)
+        if node.is_root():
+            self.root = Node()
+            self.root.add_child_nodes([node, new_node])
+        else:
+            node.parent_node.add_child_node(new_node)
+            if node.parent_node.is_overflow():
+                self.handle_overflow(node.parent_node)
         pass
 
     def split_leaf_node(self, node):
-        pass
+        new_node = Node()
+
+        return node, new_node
 
     def split_internal_node(self, node):
-        pass
+        new_node = Node()
+        return node, new_node
 
     def query_region(self, region):
         return None
