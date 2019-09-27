@@ -18,7 +18,7 @@ class Rect:
         return self.x1 < rect.x2 and self.x2 > rect.x1 and self.y1 > rect.y2 and self.y2 < rect.y1
 
     def contain_rect(self, rect):
-        return self.x1 < rect.x1 and self.y1 < rect.y1 and self.x2 < rect.x2 and self.y2 < rect.y2
+        return self.x1 < rect.x1 and self.y1 < rect.y1 and self.x2 > rect.x2 and self.y2 > rect.y2
 
     def has_point(self, point):
         return self.x1 <= point.x <= self.x2 and self.y1 <= point.y <= self.y2
@@ -54,9 +54,15 @@ class Node(object):
             self.data_points.append(point)
         else:
             index = 0
-            while point.x > self.data_points[index].x or point.y > self.data_points[index].y:
-                index += 1
-            self.data_points.insert(index, point)
+            while len(self.data_points) > index:
+                if (point.x > self.data_points[index].x or point.y > self.data_points[index].y):
+                    index += 1
+                else:
+                    break
+            if len(self.data_points) == index:
+                self.data_points.append(point)
+            else:
+                self.data_points.insert(index, point)
         # update MBR
         self.update_MBR()
 
