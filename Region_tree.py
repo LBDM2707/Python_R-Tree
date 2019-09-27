@@ -24,7 +24,7 @@ class Rect:
         return self.x1 <= point.x <= self.x2 and self.y1 <= point.y <= self.y2
 
     def __str__(self):
-        return "({}, {}) - ({}, {})".format(self.x1, self.y1, self.x2, self.y2)
+        return "Rect: ({}, {}), ({}, {})".format(self.x1, self.y1, self.x2, self.y2)
 
 
 class Point:
@@ -34,7 +34,7 @@ class Point:
         self.y = y
 
     def __str__(self):
-        return "Point #{}: - ({}, {})".format(self.id, self.x, self.y)
+        return "Point #{}: ({}, {})".format(self.id, self.x, self.y)
 
 
 class Node(object):
@@ -50,22 +50,13 @@ class Node(object):
 
     def add_point(self, point):
         # update in the right position to keep the list ordered
-        if len(self.data_points) == 0:
-            self.data_points.append(point)
-        else:
-            index = 0
-            while len(self.data_points) > index:
-                if (point.x > self.data_points[index].x or point.y > self.data_points[index].y):
-                    index += 1
-                else:
-                    break
-            if len(self.data_points) == index:
-                self.data_points.append(point)
-            else:
-                self.data_points.insert(index, point)
+        self.add_points([point])
+        pass
+
+    def add_points(self, points):
+        self.data_points += points
         # update MBR
         self.update_MBR()
-
         pass
 
     def perimeter_increase_with_point(self, point):
@@ -94,14 +85,14 @@ class Node(object):
         return len(self.child_nodes) == 0
 
     def add_child_node(self, node):
-        node.parent_node = self
-        self.child_nodes.append(node)
-        self.update_MBR()
+        self.add_child_nodes([node])
         pass
 
     def add_child_nodes(self, nodes):
         for node in nodes:
-            self.add_child_node(node)
+            node.parent_node = self
+            self.child_nodes.append(node)
+        self.update_MBR()
         pass
 
     def update_MBR(self):
@@ -123,7 +114,7 @@ class Node(object):
 class RegionTree:
     def __init__(self, B):
         self.B = B
-        self.root = Node()
+        self.root = Node(self.B)
 
     def insert_point(self, point, cur_node=None):
         # init U as node
@@ -152,10 +143,11 @@ class RegionTree:
                 best_perimeter = item.perimeter_with_point(point)
         return best_child
 
+    # WIP
     def handle_overflow(self, node):
         node, new_node = self.split_leaf_node(node) if node.is_leaf() else self.split_internal_node(node)
         if node.is_root():
-            self.root = Node()
+            self.root = Node(self.B)
             self.root.add_child_nodes([node, new_node])
         else:
             node.parent_node.add_child_node(new_node)
@@ -163,14 +155,30 @@ class RegionTree:
                 self.handle_overflow(node.parent_node)
         pass
 
+    # WIP
     def split_leaf_node(self, node):
-        new_node = Node()
-
+        new_node = Node(self.B)
+        all_points = sorted(node.data_points, key=lambda point: point.x)
+        node.data_points = all_points[:len(all_points) // 2]
+        node.update_MBR()
+        new_node.add_points(all_points[len(all_points) // 2:])
         return node, new_node
 
+    # WIP
     def split_internal_node(self, node):
-        new_node = Node()
+        new_node = Node(self.B)
         return node, new_node
 
-    def query_region(self, region):
-        return None
+    # Take in a Rect and return number of data point that is covered by the R tree.
+    def region_query(self, rect, node=None):
+        # initiate with root
+        node = self.root if node is None else node
+        if node.is_leaf():
+            print("some point")
+            count = 0
+            for point in node.child_nodes:
+                if rect.has_point(point):
+                    count += 1
+            return count
+        else:
+            return sum([self.region_query(rect, child) for child in node.child_nodes if rect.is_overlap(child.MBR)])
