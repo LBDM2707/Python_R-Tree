@@ -1,5 +1,6 @@
 import sys
-from Core_functions import RTree, sequential_query
+# from Core_functions import
+from Region_tree import RegionTree, Point, Rect, sequential_query
 import time
 
 data_file = ""
@@ -14,19 +15,16 @@ def time_it(func, *args):
 
 
 def construct_r_tree(data_points):
-    R_tree = RTree()
-    print("get here")
+    R_tree = RegionTree()
     temp_counter = 0
     print("\033[H\033[J")
     print("build R-Tree:\n0.0%\n", end="\r")
     for i in range(len(data_points)):
-        print(i)
         if temp_counter >= len(data_points) / 1000:
             print("\033[H\033[J")
             print("build R-Tree:\n{:.1f}%\n".format(100 * i / len(data_points)), end="\r")
             temp_counter = temp_counter % (len(data_points) / 1000)
-        point = data_points[i]
-        R_tree.insert(point, Rect(point["x"], point["y"], point["x"], point["y"]))
+        R_tree.insert_point(data_points[i], cur_node=R_tree.root)
         temp_counter += 1
 
     return R_tree
@@ -47,7 +45,7 @@ def main(args):
         data_points = []
         for i in range(data_size):
             id, x, y = input[i + 1].split(" ")
-            data_points.append({"id": id, "x": int(x), "y": int(y)})
+            data_points.append(Point(id, int(x), int(y)))
         # Create R tree
         R_tree = construct_r_tree(data_points)
 
@@ -65,17 +63,18 @@ def main(args):
         for line in input:
             if len(line.split(" ")) == 4:
                 x1, x2, y1, y2 = line.split(" ")
-                queries.append({"x1": int(x1), "x2": int(x2), "y1": int(y1), "y2": int(y2)})
+                queries.append(Rect(int(x1), int(y1), int(x2), int(y2)))
                 number_of_queries += 1
                 query = queries[-1]
+                print(query)
                 # Run and time  each sequential & R tree query
                 # sequential
-                time_sum_sequential += time_it(sequential_query, data_points, query)['time']
+                sequential_run = time_it(sequential_query, data_points, query)
+                time_sum_sequential += sequential_run['time']
                 # R tree
-                r_tree_run = time_it(R_tree.query_rect,
-                                     (query["x1"], query["y1"], query["x2"], query["y2"]))
+                r_tree_run = time_it(R_tree.region_query, query)
                 time_sum_r_tree += r_tree_run['time']
-                results.append("{}\n".format(r_tree_run['result']))
+                results.append("{} - {} \n".format(r_tree_run['result'], sequential_run['result']))
         print('\ntotal time for sequential queries: {}'.format(time_sum_sequential))
         output_file.write('\ntotal time for sequential queries: {}\n'.format(time_sum_sequential))
         print('average time for every sequential query: {}\n'.format(time_sum_sequential / number_of_queries))

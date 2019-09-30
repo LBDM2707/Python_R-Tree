@@ -1,6 +1,5 @@
 import math
 import sys
-from copy import deepcopy
 
 
 # B = 4
@@ -15,7 +14,9 @@ class Rect:
         return 2 * (abs(self.x2 - self.x1) + abs(self.y2 - self.y1))
 
     def is_overlap(self, rect):
-        return self.x1 < rect.x2 and self.x2 > rect.x1 and self.y1 > rect.y2 and self.y2 < rect.y1
+        if self.y1 > rect.y2 or self.y2 < rect.y1 or self.x1 > rect.x2 or self.x2 < rect.y1:
+            return False
+        return True
 
     def contain_rect(self, rect):
         return self.x1 < rect.x1 and self.y1 < rect.y1 and self.x2 > rect.x2 and self.y2 > rect.y2
@@ -37,8 +38,16 @@ class Point:
         return "Point #{}: ({}, {})".format(self.id, self.x, self.y)
 
 
+def sequential_query(points, query):
+    result = 0
+    for point in points:
+        if query.x1 <= point.x <= query.x2 and query.y1 <= point.y <= query.y2:
+            result = result + 1
+    return result
+
+
 class Node(object):
-    def __init__(self, B=4):
+    def __init__(self, B):
         self.B = B
         self.id = 0
         # for internal nodes
@@ -71,15 +80,15 @@ class Node(object):
         return self.MBR.perimeter()
 
     def is_underflow(self):
-        return (self.is_leaf and len(self.data_points) < math.ceil(self.B / 2)) or \
-               (not self.is_leaf and len(self.child_nodes) < math.ceil(self.B / 2))
+        return (self.is_leaf() and len(self.data_points) < math.ceil(self.B / 2)) or \
+               (not self.is_leaf() and len(self.child_nodes) < math.ceil(self.B / 2))
 
     def is_overflow(self):
-        return (self.is_leaf and len(self.data_points) > self.B) or \
-               (not self.is_leaf and len(self.child_nodes) > self.B)
+        return (self.is_leaf() and len(self.data_points) > self.B) or \
+               (not self.is_leaf() and len(self.child_nodes) > self.B)
 
     def is_root(self):
-        return self.parent is None
+        return self.parent_node is None
 
     def is_leaf(self):
         return len(self.child_nodes) == 0
@@ -110,16 +119,36 @@ class Node(object):
             self.parent_node.update_MBR()
         pass
 
+    # Get perimeter of an MBR formed by a list of data points
+    @staticmethod
+    def get_points_MBR_perimeter(points):
+        x1 = min([point.x for point in points])
+        x2 = max([point.x for point in points])
+        y1 = min([point.y for point in points])
+        y2 = max([point.y for point in points])
+        return Rect(x1, y1, x2, y2).perimeter()
+
+    @staticmethod
+    def get_nodes_MBR_perimeter(nodes):
+        x1 = min([node.MBR.x1 for node in nodes])
+        x2 = max([node.MBR.x2 for node in nodes])
+        y1 = min([node.MBR.y1 for node in nodes])
+        y2 = max([node.MBR.y2 for node in nodes])
+        return Rect(x1, y1, x2, y2).perimeter()
+
 
 class RegionTree:
-    def __init__(self, B):
+    def __init__(self, B=4):
         self.B = B
         self.root = Node(self.B)
 
     def insert_point(self, point, cur_node=None):
         # init U as node
+        # print("{} is leaf: {}".format(self.root, self.root.is_leaf()))
         if cur_node is None:
             cur_node = self.root
+
+            # print("{} is leaf: {}".format(cur_node, cur_node.is_leaf()))
         # Insertion logic start
         if cur_node.is_leaf():
             cur_node.add_point(point)
@@ -128,8 +157,7 @@ class RegionTree:
                 self.handle_overflow(cur_node)
         else:
             chosen_child = self.choose_best_child(cur_node, point)
-            self.insert_point(point, chosen_child)
-        pass
+            self.insert_point(point, cur_node=chosen_child)
 
     # Find a suitable one to expand:
     @staticmethod
@@ -140,45 +168,116 @@ class RegionTree:
         for item in node.child_nodes:
             if node.child_nodes.index(item) == 0 or best_perimeter > item.perimeter_increase_with_point(point):
                 best_child = item
-                best_perimeter = item.perimeter_with_point(point)
+                best_perimeter = item.perimeter_increase_with_point(point)
         return best_child
 
     # WIP
     def handle_overflow(self, node):
         node, new_node = self.split_leaf_node(node) if node.is_leaf() else self.split_internal_node(node)
-        if node.is_root():
+
+        if self.root is node:
             self.root = Node(self.B)
             self.root.add_child_nodes([node, new_node])
         else:
             node.parent_node.add_child_node(new_node)
             if node.parent_node.is_overflow():
                 self.handle_overflow(node.parent_node)
-        pass
 
     # WIP
     def split_leaf_node(self, node):
-        new_node = Node(self.B)
-        all_points = sorted(node.data_points, key=lambda point: point.x)
-        node.data_points = all_points[:len(all_points) // 2]
+        m = len(node.data_points)
+        best_perimeter = -1
+        best_set_1 = []
+        best_set_2 = []
+        # Run x axis
+        all_point_sorted_by_x = sorted(node.data_points, key=lambda point: point.x)
+        for i in range(int(0.4 * m), int(m * 0.6) + 1):
+            list_point_1 = all_point_sorted_by_x[:i]
+            list_point_2 = all_point_sorted_by_x[i:]
+            temp_sum_perimeter = Node.get_points_MBR_perimeter(list_point_1) \
+                                 + Node.get_points_MBR_perimeter(list_point_2)
+            if best_perimeter == -1 or best_perimeter > temp_sum_perimeter:
+                best_perimeter = temp_sum_perimeter
+                best_set_1 = list_point_1
+                best_set_2 = list_point_2
+        # Run y axis
+        all_point_sorted_by_y = sorted(node.data_points, key=lambda point: point.y)
+        for i in range(int(0.4 * m), int(m * 0.6) + 1):
+            list_point_1 = all_point_sorted_by_y[:i]
+            list_point_2 = all_point_sorted_by_y[i:]
+            temp_sum_perimeter = Node.get_points_MBR_perimeter(list_point_1) \
+                                 + Node.get_points_MBR_perimeter(list_point_2)
+            if best_perimeter == -1 or best_perimeter > temp_sum_perimeter:
+                best_perimeter = temp_sum_perimeter
+                best_set_1 = list_point_1
+                best_set_2 = list_point_2
+        node.data_points = best_set_1
         node.update_MBR()
-        new_node.add_points(all_points[len(all_points) // 2:])
+        new_node = Node(self.B)
+        new_node.add_points(best_set_2)
         return node, new_node
 
     # WIP
     def split_internal_node(self, node):
+        m = len(node.child_nodes)
+        best_perimeter = -1
+        best_set_1 = []
+        best_set_2 = []
+        # Run x axis
+        all_node_sorted_by_x = sorted(node.child_nodes, key=lambda child: child.MBR.x1)
+        for i in range(int(0.4 * m), int(m * 0.6) + 1):
+            list_node_1 = all_node_sorted_by_x[:i]
+            list_node_2 = all_node_sorted_by_x[i:]
+            temp_sum_perimeter = Node.get_nodes_MBR_perimeter(list_node_1) \
+                                 + Node.get_nodes_MBR_perimeter(list_node_2)
+            if best_perimeter == -1 or best_perimeter > temp_sum_perimeter:
+                best_perimeter = temp_sum_perimeter
+                best_set_1 = list_node_1
+                best_set_2 = list_node_2
+                # Run y axis
+        all_node_sorted_by_y = sorted(node.child_nodes, key=lambda child: child.MBR.y1)
+        for i in range(int(0.4 * m), int(m * 0.6) + 1):
+            list_node_1 = all_node_sorted_by_y[:i]
+            list_node_2 = all_node_sorted_by_y[i:]
+            temp_sum_perimeter = Node.get_nodes_MBR_perimeter(list_node_1) \
+                                 + Node.get_nodes_MBR_perimeter(list_node_2)
+            if best_perimeter == -1 or best_perimeter > temp_sum_perimeter:
+                best_perimeter = temp_sum_perimeter
+                best_set_1 = list_node_1
+                best_set_2 = list_node_2
+        node.child_nodes = best_set_1
+        node.update_MBR()
         new_node = Node(self.B)
+        new_node.add_child_nodes(best_set_2)
         return node, new_node
 
     # Take in a Rect and return number of data point that is covered by the R tree.
     def region_query(self, rect, node=None):
         # initiate with root
-        node = self.root if node is None else node
+        if node is None:
+            node = self.root
+
         if node.is_leaf():
-            print("some point")
+            # print("get here")
             count = 0
-            for point in node.child_nodes:
+            for point in node.data_points:
                 if rect.has_point(point):
                     count += 1
             return count
         else:
-            return sum([self.region_query(rect, child) for child in node.child_nodes if rect.is_overlap(child.MBR)])
+            # print([child.MBR for child in node.child_nodes])
+            total = 0
+            for child in node.child_nodes:
+                # print("{} and {} is overlapped {}".format(rect, child.MBR, rect.is_overlap(child.MBR)))
+                if rect.is_overlap(child.MBR):
+                    total += self.region_query(rect, child)
+            return total
+
+
+def test_the_shit():
+    tree = RegionTree(3)
+    import random
+    for i in range(15):
+        tree.insert_point(Point(random.randint(0, 50), random.randint(0, 50), random.randint(0, 50)))
+    Rect(57144, 24954, 58144, 25954).is_overlap(Rect(1, 52163, 100000, 100000))
+    pass
